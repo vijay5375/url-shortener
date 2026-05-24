@@ -14,6 +14,75 @@ A production-grade URL shortening service built with Spring Boot 4, PostgreSQL, 
 - Swagger UI at `/swagger-ui.html`
 - Docker Compose setup for one-command local startup
 
+## Architecture
+
+### Component Overview
+
+```mermaid
+graph TB
+    Client([HTTP Client])
+
+    subgraph App["Spring Boot Application"]
+        subgraph Filters["Filter Chain"]
+            RLF["RateLimitFilter\n20 req/min per IP"]
+            AKF["ApiKeyFilter\nWrite ops only"]
+        end
+
+        subgraph Controllers["Controllers"]
+            UC["UrlController\nPOST /shorten\nGET /{code}\nDELETE /{code}"]
+            AC["AnalyticsController\nGET /analytics/{code}"]
+        end
+
+        subgraph Services["Services"]
+            USS["UrlShortenerService"]
+            RS["RedirectService"]
+            AS["AnalyticsService"]
+            CS["CacheService"]
+        end
+
+        SCH["UrlCleanupScheduler\nevery hour"]
+    end
+
+    Redis[("Redis 7\nurl:{code} → longUrl")]
+    PG[("PostgreSQL 15\nurls\nurl_clicks")]
+
+    Client --> RLF --> AKF
+    AKF --> UC & AC
+    UC --> USS & RS
+    AC --> AS
+    USS & RS --> CS
+    CS <--> Redis
+    USS & RS & AS & SCH --> PG
+```
+
+### Redirect Request Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant F as Filter Chain
+    participant RS as RedirectService
+    participant Cache as Redis
+    participant DB as PostgreSQL
+
+    C->>F: GET /{shortCode}
+    F->>F: Rate limit check (Bucket4j)
+    F->>RS: resolveUrl(shortCode)
+    RS->>Cache: get(url:{shortCode})
+
+    alt Cache Hit
+        Cache-->>RS: longUrl
+    else Cache Miss
+        Cache-->>RS: null
+        RS->>DB: findActiveByShortCode()
+        DB-->>RS: Url entity
+        RS->>Cache: put(url:{shortCode}, longUrl)
+    end
+
+    RS-->>C: 302 redirect → longUrl
+    RS-)DB: async recordClick() (non-blocking)
+```
+
 ## Tech Stack
 
 | Layer | Technology |
