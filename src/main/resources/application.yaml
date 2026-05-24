@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/urlshortener
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update       # auto-creates tables on startup
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+server:
+  port: 8080
+
+app:
+  base-url: http://localhost:8080   # used to build the short URL
+  default-ttl-days: 30              # link expiry default
+  short-code-length: 7              # Base62 code length
+  cache-ttl-seconds: 3600          # how long to keep in Redis
+  api-key: change-me-in-production  # X-API-Key header value for write endpoints
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  show-actuator: false
